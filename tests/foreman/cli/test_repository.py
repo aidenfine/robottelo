@@ -263,6 +263,48 @@ class TestRepository:
         new_repo = target_sat.cli.Repository.info({'id': repo['id']})
         assert new_repo['sync']['status'] == 'Success'
 
+    @pytest.mark.parametrize(
+        'repo_options',
+        **parametrized(
+            [
+                {
+                    'content-type': 'docker',
+                    'url': 'https://registry.access.redhat.com',
+                    'docker-upstream-name': 'ubi10/ubi-micro',
+                    'include-tags': 'latest',
+                },
+            ]
+        ),
+        indirect=True,
+    )
+    def test_positive_create_and_sync_pqc_docker_image(self, target_sat, repo_options, repo):
+        """Sync a UBI10 micro container image with PQC signatures.
+
+        :id: e9275b93-dcb0-434b-827d-be74e780d11a
+
+        :steps:
+            1. Create a docker-type repository for ubi10/ubi-micro
+               from registry.access.redhat.com with the 'latest' tag
+            2. Sync the repository
+            3. Verify sync succeeds and container content is present
+
+        :expectedresults: Repository syncs successfully and contains at least one container tag and manifest
+
+        :Verifies: SAT-43829
+        """
+        for key in 'url', 'content-type':
+            assert repo.get(key) == repo_options[key]
+
+        repo = target_sat.cli.Repository.info({'id': repo['id']})
+        assert repo['sync']['status'] == 'Not Synced'
+
+        target_sat.cli.Repository.synchronize({'id': repo['id']})
+
+        repo = target_sat.cli.Repository.info({'id': repo['id']})
+        assert repo['sync']['status'] == 'Success'
+        assert int(repo['content-counts']['container-tags']) >= 1
+        assert int(repo['content-counts']['container-manifests']) >= 1
+
     @pytest.mark.upgrade
     @pytest.mark.parametrize(
         'repo_options',
